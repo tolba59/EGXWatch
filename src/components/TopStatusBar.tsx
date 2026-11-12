@@ -69,22 +69,18 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
   const is1D = chartRange === '1D';
 
   // Period-aware benchmark changes
-  const egx30Change1D = egx30?.changePercent ?? -0.91;
-  const egx30Change7D = egx30?.changePercent7D && Math.abs(egx30.changePercent7D) > 0.05 && egx30.changePercent7D !== egx30Change1D
-    ? egx30.changePercent7D
-    : 1.85;
+  const egx30Change1D = egx30?.changePercent1D ?? egx30?.changePercent ?? 0;
+  const egx30Change7D = egx30?.changePercent7D ?? egx30Change1D;
   const egx30Change = is1D ? egx30Change1D : egx30Change7D;
-  const isEgx30Pos = egx30Change > 0;
-  const isEgx30Neg = egx30Change < 0;
+  const isEgx30Pos = egx30Change > 0.001;
+  const isEgx30Neg = egx30Change < -0.001;
 
   const egx70Points = egx70?.regularMarketPrice;
-  const egx70Change1D = egx70?.changePercent ?? 0.43;
-  const egx70Change7D = egx70?.changePercent7D && Math.abs(egx70.changePercent7D) > 0.05 && egx70.changePercent7D !== egx70Change1D
-    ? egx70.changePercent7D
-    : 2.38;
+  const egx70Change1D = egx70?.changePercent1D ?? egx70?.changePercent ?? 0;
+  const egx70Change7D = egx70?.changePercent7D ?? egx70Change1D;
   const egx70Change = is1D ? egx70Change1D : egx70Change7D;
-  const isEgx70Pos = egx70Change > 0;
-  const isEgx70Neg = egx70Change < 0;
+  const isEgx70Pos = egx70Change > 0.001;
+  const isEgx70Neg = egx70Change < -0.001;
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-2xs">

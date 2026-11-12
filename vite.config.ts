@@ -104,92 +104,193 @@ function devApiProxyPlugin(): Plugin {
         if (url.pathname === '/api/quotes') {
           try {
             const symbolsParam = url.searchParams.get('symbols') || '';
-            const requested = symbolsParam.split(',').map((s) => s.trim()).filter(Boolean);
-            const allSymbols = Array.from(new Set([...requested, '^CASE30', '^EGX70EWI.CA', 'EGPEUR=X']));
+            const requested = symbolsParam.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+            const allSymbols = Array.from(new Set([...requested, '^CASE30', '^EGX70EWI.CA']));
 
-            const results = await Promise.all(
-              allSymbols.map(async (symbol) => {
-                const clean = symbol.trim().toUpperCase();
+            const toTvTicker = (sym: string) => {
+              const c = sym.trim().toUpperCase();
+              if (c === '^CASE30') return 'EGX:EGX30';
+              if (c === '^EGX70EWI.CA' || c === '^EGX70EWI') return 'EGX:EGX70EWI';
+              return `EGX:${c.replace(/\.CA$/i, '')}`;
+            };
+
+            const tvTickers = Array.from(new Set(allSymbols.map(toTvTicker)));
+            const tvPromise = fetch('https://scanner.tradingview.com/egypt/scan', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': USER_AGENT,
+                Accept: 'application/json',
+              },
+              body: JSON.stringify({
+                symbols: { tickers: tvTickers },
+                columns: [
+                  'name',
+                  'close',
+                  'change',
+                  'change_abs',
+                  'open',
+                  'high',
+                  'low',
+                  'volume',
+                  'Value.Traded',
+                  'price_52_week_high',
+                  'price_52_week_low',
+                  'Perf.W',
+                ],
+              }),
+            })
+              .then(async (r) => (r.ok ? ((await r.json()) as any) : null))
+              .catch(() => null);
+
+            const yfPromise = Promise.all(
+              allSymbols.map(async (clean) => {
                 const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(clean)}?range=7d&interval=1d`;
                 try {
                   const r = await fetch(yfUrl, {
-                    headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' },
+                    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
                   });
-                  if (!r.ok) return { symbol: clean, data: null };
+                  if (!r.ok) return { clean, closes: [] as number[], meta: null };
                   const j = (await r.json()) as any;
                   const res0 = j?.chart?.result?.[0];
-                  if (!res0?.meta) return { symbol: clean, data: null };
-                  const meta = res0.meta;
-                  const quoteObj = res0.indicators?.quote?.[0];
-                  const closes = (quoteObj?.close || []).filter(
+                  const closes = (res0?.indicators?.quote?.[0]?.close || []).filter(
                     (v: any): v is number => typeof v === 'number' && !isNaN(v) && v > 0
                   );
-                  if (meta.regularMarketPrice && (closes.length === 0 || closes[closes.length - 1] !== meta.regularMarketPrice)) {
-                    closes.push(meta.regularMarketPrice);
-                  }
-
-                  const curPrice = meta.regularMarketPrice ?? 0;
-                  const prevClose = meta.chartPreviousClose || meta.previousClose || curPrice;
-
-                  // 1D: Use Yahoo's actual session change/changePercent
-                  const change1D = meta.regularMarketChange ?? meta.fulldayChange ?? (curPrice - prevClose);
-                  const changePercent1D = meta.regularMarketChangePercent ?? meta.fulldayChangePercent ?? (prevClose !== 0 ? (change1D / prevClose) * 100 : 0);
-
-                  // 7D: Compare today's price vs the close 7 days ago (first close in range)
-                  const start7D = closes.length > 1 ? closes[0] : (clean === '^CASE30' ? curPrice * 0.985 : clean === '^EGX70EWI.CA' ? curPrice * 0.978 : prevClose);
-                  const change7D = curPrice - start7D;
-                  const changePercent7D = start7D !== 0 ? ((curPrice - start7D) / start7D) * 100 : changePercent1D;
-
-                  // Volume and value
-                  const rawVolumes = (quoteObj?.volume || []).filter((v: any) => typeof v === 'number' && !isNaN(v) && v > 0);
-                  const volume = meta.regularMarketVolume || rawVolumes[rawVolumes.length - 1] || 0;
-                  const tradingValue = volume * curPrice;
-
-                  // Day range & 1D sparkline
-                  const rawHighs = (quoteObj?.high || []).filter((v: any) => typeof v === 'number' && !isNaN(v) && v > 0);
-                  const rawLows = (quoteObj?.low || []).filter((v: any) => typeof v === 'number' && !isNaN(v) && v > 0);
-                  const rawOpens = (quoteObj?.open || []).filter((v: any) => typeof v === 'number' && !isNaN(v) && v > 0);
-                  const dayHigh = meta.regularMarketDayHigh ?? (rawHighs.length > 0 ? rawHighs[rawHighs.length - 1] : curPrice);
-                  const dayLow = meta.regularMarketDayLow ?? (rawLows.length > 0 ? rawLows[rawLows.length - 1] : curPrice);
-                  const dayOpen = rawOpens.length > 0 ? rawOpens[rawOpens.length - 1] : prevClose;
-
-                  const sparkline1D = [prevClose, dayOpen, dayLow, dayHigh, curPrice].filter(
-                    (v) => typeof v === 'number' && !isNaN(v) && v > 0
-                  );
-
-                  return {
-                    symbol: clean,
-                    data: {
-                      symbol: clean,
-                      currency: 'EGP',
-                      regularMarketPrice: curPrice,
-                      chartPreviousClose: prevClose,
-                      change: change1D,
-                      changePercent: changePercent1D,
-                      change1D,
-                      changePercent1D,
-                      change7D,
-                      changePercent7D,
-                      dayLow,
-                      dayHigh,
-                      fiftyTwoWeekLow: meta.fiftyTwoWeekLow ?? curPrice * 0.75,
-                      fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? curPrice * 1.25,
-                      volume,
-                      tradingValue,
-                      regularMarketTime: meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now(),
-                      sparkline: closes.slice(-7),
-                      sparkline1D,
-                    },
-                  };
+                  return { clean, closes, meta: res0?.meta || null };
                 } catch {
-                  return { symbol: clean, data: null };
+                  return { clean, closes: [] as number[], meta: null };
                 }
               })
             );
 
+            const [tvJson, yfResults] = await Promise.all([tvPromise, yfPromise]);
+
+            const tvMap: Record<string, any[]> = {};
+            for (const row of tvJson?.data || []) {
+              if (row?.s && Array.isArray(row.d)) {
+                tvMap[row.s.toUpperCase()] = row.d;
+              }
+            }
+
+            const yfMap: Record<string, { closes: number[]; meta: any | null }> = {};
+            for (const item of yfResults) {
+              yfMap[item.clean] = { closes: item.closes, meta: item.meta };
+            }
+
             const quotes: Record<string, any> = {};
-            for (const item of results) {
-              if (item.data) quotes[item.symbol] = item.data;
+            for (const clean of allSymbols) {
+              const tvRow = tvMap[toTvTicker(clean)];
+              const yf = yfMap[clean] || { closes: [], meta: null };
+
+              if (tvRow && typeof tvRow[1] === 'number' && tvRow[1] > 0) {
+                const curPrice = tvRow[1];
+                const changePercent1D = typeof tvRow[2] === 'number' ? tvRow[2] : 0;
+                const change1D = typeof tvRow[3] === 'number' ? tvRow[3] : 0;
+                const prevClose = curPrice - change1D > 0 ? curPrice - change1D : curPrice;
+                const dayOpen = typeof tvRow[4] === 'number' && tvRow[4] > 0 ? tvRow[4] : prevClose;
+                const dayHigh = typeof tvRow[5] === 'number' && tvRow[5] > 0 ? tvRow[5] : curPrice;
+                const dayLow = typeof tvRow[6] === 'number' && tvRow[6] > 0 ? tvRow[6] : curPrice;
+                const volume = typeof tvRow[7] === 'number' && tvRow[7] > 0 ? tvRow[7] : 0;
+                const tradingValue = typeof tvRow[8] === 'number' && tvRow[8] > 0 ? tvRow[8] : volume * curPrice;
+
+                const rawHigh52 = typeof tvRow[9] === 'number' && tvRow[9] > 0 ? tvRow[9] : yf.meta?.fiftyTwoWeekHigh;
+                const rawLow52 = typeof tvRow[10] === 'number' && tvRow[10] > 0 ? tvRow[10] : yf.meta?.fiftyTwoWeekLow;
+                const fiftyTwoWeekHigh = rawHigh52 ? Math.max(rawHigh52, curPrice) : curPrice * 1.25;
+                const fiftyTwoWeekLow = rawLow52 ? Math.min(rawLow52, curPrice) : curPrice * 0.75;
+
+                const perfW = typeof tvRow[11] === 'number' ? tvRow[11] : null;
+                const start7D =
+                  perfW !== null && 1 + perfW / 100 > 0
+                    ? curPrice / (1 + perfW / 100)
+                    : yf.closes.length > 0
+                    ? yf.closes[0]
+                    : prevClose;
+                const change7D = curPrice - start7D;
+                const changePercent7D = perfW !== null ? perfW : start7D > 0 ? (change7D / start7D) * 100 : changePercent1D;
+
+                const lastYfClose = yf.closes[yf.closes.length - 1];
+                let sparkline7D: number[];
+                if (
+                  yf.closes.length >= 2 &&
+                  lastYfClose > 0 &&
+                  Math.abs(lastYfClose - curPrice) / curPrice <= 0.35
+                ) {
+                  sparkline7D = [...yf.closes.slice(-6), curPrice];
+                } else {
+                  const mid1 = start7D + (prevClose - start7D) * 0.33;
+                  const mid2 = start7D + (prevClose - start7D) * 0.66;
+                  sparkline7D = [start7D, mid1, mid2, prevClose, curPrice].filter((v) => v > 0);
+                }
+
+                const sparkline1D = [prevClose, dayOpen, dayLow, dayHigh, curPrice].filter(
+                  (v) => typeof v === 'number' && !isNaN(v) && v > 0
+                );
+
+                quotes[clean] = {
+                  symbol: clean,
+                  currency: 'EGP',
+                  regularMarketPrice: curPrice,
+                  chartPreviousClose: prevClose,
+                  change: change1D,
+                  changePercent: changePercent1D,
+                  change1D,
+                  changePercent1D,
+                  change7D,
+                  changePercent7D,
+                  dayLow,
+                  dayHigh,
+                  fiftyTwoWeekLow,
+                  fiftyTwoWeekHigh,
+                  volume,
+                  tradingValue,
+                  regularMarketTime: Date.now(),
+                  sparkline: sparkline7D,
+                  sparkline1D,
+                };
+              } else if (yf.meta) {
+                const meta = yf.meta;
+                const lastBar = yf.closes.length > 0 ? yf.closes[yf.closes.length - 1] : null;
+                const prevBar = yf.closes.length > 1 ? yf.closes[yf.closes.length - 2] : null;
+                const isStale =
+                  typeof meta.regularMarketTime === 'number' &&
+                  Date.now() - meta.regularMarketTime * 1000 > 14 * 24 * 60 * 60 * 1000;
+                const curPrice = isStale && lastBar ? lastBar : (meta.regularMarketPrice ?? lastBar ?? 0);
+                if (curPrice > 0) {
+                  const prevClose = isStale && prevBar ? prevBar : (meta.previousClose || meta.chartPreviousClose || curPrice);
+                  const change1D = isStale && prevBar ? curPrice - prevBar : (meta.fulldayChange ?? meta.regularMarketChange ?? (curPrice - prevClose));
+                  const changePercent1D =
+                    isStale && prevBar && prevBar > 0
+                      ? ((curPrice - prevBar) / prevBar) * 100
+                      : (meta.fulldayChangePercent ?? meta.regularMarketChangePercent ?? (prevClose > 0 ? (change1D / prevClose) * 100 : 0));
+                  const spark = [...yf.closes];
+                  if (spark[spark.length - 1] !== curPrice) spark.push(curPrice);
+                  const start7D = spark.length > 1 ? spark[0] : prevClose;
+                  const change7D = curPrice - start7D;
+                  const changePercent7D = start7D > 0 ? (change7D / start7D) * 100 : changePercent1D;
+
+                  quotes[clean] = {
+                    symbol: clean,
+                    currency: 'EGP',
+                    regularMarketPrice: curPrice,
+                    chartPreviousClose: prevClose,
+                    change: change1D,
+                    changePercent: changePercent1D,
+                    change1D,
+                    changePercent1D,
+                    change7D,
+                    changePercent7D,
+                    dayLow: meta.regularMarketDayLow ?? curPrice,
+                    dayHigh: meta.regularMarketDayHigh ?? curPrice,
+                    fiftyTwoWeekLow: meta.fiftyTwoWeekLow ? Math.min(meta.fiftyTwoWeekLow, curPrice) : curPrice * 0.75,
+                    fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ? Math.max(meta.fiftyTwoWeekHigh, curPrice) : curPrice * 1.25,
+                    volume: meta.regularMarketVolume || 0,
+                    tradingValue: (meta.regularMarketVolume || 0) * curPrice,
+                    regularMarketTime: Date.now(),
+                    sparkline: spark.slice(-7),
+                    sparkline1D: [prevClose, curPrice].filter((v) => v > 0),
+                  };
+                }
+              }
             }
 
             res.setHeader('Content-Type', 'application/json');
@@ -199,7 +300,6 @@ function devApiProxyPlugin(): Plugin {
                 timestamp: Date.now(),
                 egx30: quotes['^CASE30'] || null,
                 egx70: quotes['^EGX70EWI.CA'] || null,
-                egpEurRate: quotes['EGPEUR=X']?.regularMarketPrice || null,
                 quotes,
               })
             );
@@ -221,60 +321,79 @@ function devApiProxyPlugin(): Plugin {
               return;
             }
 
-            const cleanQuery = query.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const yfUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=20&newsCount=0`;
-            
-            const probePromise = cleanQuery.length >= 2 && cleanQuery.length <= 6
-              ? fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanQuery + '.CA')}?range=1d&interval=1d`, {
-                  headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-                }).then(async (r) => {
-                  if (!r.ok) return null;
-                  const j = await r.json();
-                  const meta = j?.chart?.result?.[0]?.meta;
-                  if (meta && meta.regularMarketPrice) {
-                    return {
-                      symbol: `${cleanQuery}.CA`,
-                      shortname: cleanQuery,
-                      longname: `${cleanQuery} (البورصة المصرية)`,
+            const cleanTicker = query.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const hasArabic = /[\u0600-\u06FF]/.test(query);
+            const tvRes = await fetch('https://scanner.tradingview.com/egypt/scan', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': USER_AGENT,
+                Accept: 'application/json',
+              },
+              body: JSON.stringify({
+                filter: [{ left: 'name,description', operation: 'match', right: query }],
+                options: { lang: hasArabic ? 'ar' : 'en' },
+                columns: ['name', 'description', 'type'],
+                range: [0, 20],
+              }),
+            }).catch(() => null);
+
+            const results: any[] = [];
+            if (tvRes && tvRes.ok) {
+              const json = (await tvRes.json()) as any;
+              for (const row of json?.data || []) {
+                const ticker = String(row.d?.[0] || '').trim().toUpperCase();
+                const desc = String(row.d?.[1] || ticker).trim();
+                const type = String(row.d?.[2] || '').toLowerCase();
+                if (!ticker || type === 'index' || ticker.startsWith('EGX')) continue;
+                if (/^EGS[0-9A-Z]{8,}$/.test(ticker)) continue;
+                results.push({
+                  symbol: `${ticker}.CA`,
+                  shortname: ticker,
+                  longname: desc,
+                  exchange: 'CAI',
+                  quoteType: 'EQUITY',
+                  isCairo: true,
+                });
+              }
+            }
+
+            if (cleanTicker.length >= 3 && cleanTicker.length <= 6) {
+              const exactSymbol = `${cleanTicker}.CA`;
+              if (!results.some((r) => r.symbol === exactSymbol)) {
+                const probeRes = await fetch('https://scanner.tradingview.com/egypt/scan', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': USER_AGENT,
+                    Accept: 'application/json',
+                  },
+                  body: JSON.stringify({
+                    symbols: { tickers: [`EGX:${cleanTicker}`] },
+                    columns: ['name', 'description', 'close', 'type'],
+                  }),
+                }).catch(() => null);
+
+                if (probeRes && probeRes.ok) {
+                  const pj = (await probeRes.json()) as any;
+                  const row = pj?.data?.[0];
+                  if (row && typeof row.d?.[2] === 'number' && row.d[2] > 0) {
+                    results.unshift({
+                      symbol: exactSymbol,
+                      shortname: cleanTicker,
+                      longname: row.d[1] || `${cleanTicker} (البورصة المصرية)`,
                       exchange: 'CAI',
                       quoteType: 'EQUITY',
                       isCairo: true,
-                    };
+                    });
                   }
-                  return null;
-                }).catch(() => null)
-              : Promise.resolve(null);
-
-            const [r, directProbe] = await Promise.all([
-              fetch(yfUrl, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } }).catch(() => null),
-              probePromise,
-            ]);
-
-            let rawQuotes: any[] = [];
-            if (r && r.ok) {
-              const j = (await r.json()) as any;
-              rawQuotes = j.quotes || [];
-            }
-
-            // Strictly ONLY Egyptian Exchange (.CA / CAI)
-            const cairoQuotes = rawQuotes
-              .filter((q: any) => q.symbol?.endsWith('.CA') || q.exchange === 'CAI')
-              .map((q: any) => ({
-                symbol: q.symbol,
-                shortname: q.shortname || q.longname || q.symbol.replace('.CA', ''),
-                longname: q.longname || q.shortname || q.symbol,
-                exchange: 'CAI',
-                quoteType: q.quoteType,
-                isCairo: true,
-              }));
-
-            if (directProbe && !cairoQuotes.some((c) => c.symbol.toUpperCase() === directProbe.symbol.toUpperCase())) {
-              cairoQuotes.unshift(directProbe);
+                }
+              }
             }
 
             res.setHeader('Content-Type', 'application/json');
             res.setHeader('Access-Control-Allow-Origin', '*');
-            res.end(JSON.stringify({ query, quotes: cairoQuotes }));
+            res.end(JSON.stringify({ query, quotes: results }));
             return;
           } catch (e: any) {
             res.statusCode = 500;

@@ -1,7 +1,7 @@
 import { QuotesResponse, StockQuote } from '../types/stock';
 
-const STORAGE_KEY_QUOTES = 'egx_quotes_cache_v4';
-const STORAGE_KEY_TIMESTAMP = 'egx_quotes_last_updated_v4';
+const STORAGE_KEY_QUOTES = 'egx_quotes_cache_v5';
+const STORAGE_KEY_TIMESTAMP = 'egx_quotes_last_updated_v5';
 
 export function getCachedQuotes(): {
   quotes: Record<string, StockQuote>;
@@ -10,8 +10,10 @@ export function getCachedQuotes(): {
   timestamp: number | null;
 } {
   try {
-    // Purge deprecated v3 / v2 / v1 caches to avoid stale distorted numbers
+    // Purge older caches containing frozen Yahoo short-ticker prices
     try {
+      localStorage.removeItem('egx_quotes_cache_v4');
+      localStorage.removeItem('egx_quotes_last_updated_v4');
       localStorage.removeItem('egx_quotes_cache_v3');
       localStorage.removeItem('egx_quotes_last_updated_v3');
       localStorage.removeItem('egx_quotes_cache_v2');
@@ -52,7 +54,7 @@ export function setCachedQuotes(data: {
 }
 
 /**
- * Parses raw Yahoo Finance chart API response for a single symbol
+ * Parses raw Yahoo Finance chart API response for a single symbol (CORS fallback)
  */
 function parseChartResult(symbol: string, json: any): StockQuote | null {
   const result = json?.chart?.result?.[0];
@@ -70,36 +72,53 @@ function parseChartResult(symbol: string, json: any): StockQuote | null {
     (v: any): v is number => typeof v === 'number' && !isNaN(v) && v > 0
   );
 
-  const curPrice = meta.regularMarketPrice ?? 0;
+  // Yahoo's short .CA tickers often freeze meta.regularMarketPrice at 2024 levels while daily closes stay up to date
+  const isMetaStale =
+    typeof meta.regularMarketTime === 'number' &&
+    Date.now() - meta.regularMarketTime * 1000 > 14 * 24 * 60 * 60 * 1000;
+
+  const lastBarClose = sparkline.length > 0 ? sparkline[sparkline.length - 1] : null;
+  const prevBarClose = sparkline.length > 1 ? sparkline[sparkline.length - 2] : null;
+
+  const curPrice = isMetaStale && lastBarClose ? lastBarClose : (meta.regularMarketPrice ?? lastBarClose ?? 0);
   if (curPrice && (sparkline.length === 0 || sparkline[sparkline.length - 1] !== curPrice)) {
     sparkline.push(curPrice);
   }
 
-  // 1D Day Change (Session change):
-  // EGX stocks on Yahoo provide session metrics in fulldayChange/fulldayChangePercent or regularMarketChange
-  const prevClose = meta.previousClose || meta.chartPreviousClose || curPrice;
-  const change1D = typeof meta.fulldayChange === 'number'
-    ? meta.fulldayChange
-    : typeof meta.regularMarketChange === 'number'
-    ? meta.regularMarketChange
-    : (curPrice - prevClose);
+  // 1D Day Change (Session change)
+  const prevClose =
+    isMetaStale && prevBarClose
+      ? prevBarClose
+      : (meta.previousClose || meta.chartPreviousClose || curPrice);
 
-  const changePercent1D = typeof meta.fulldayChangePercent === 'number'
-    ? meta.fulldayChangePercent
-    : typeof meta.regularMarketChangePercent === 'number'
-    ? meta.regularMarketChangePercent
-    : (prevClose !== 0 ? (change1D / prevClose) * 100 : 0);
+  const change1D =
+    isMetaStale && prevBarClose
+      ? curPrice - prevBarClose
+      : typeof meta.fulldayChange === 'number'
+      ? meta.fulldayChange
+      : typeof meta.regularMarketChange === 'number'
+      ? meta.regularMarketChange
+      : (curPrice - prevClose);
 
-  // 7D Period Change (comparing today's price vs close 7 days ago):
+  const changePercent1D =
+    isMetaStale && prevBarClose && prevBarClose > 0
+      ? ((curPrice - prevBarClose) / prevBarClose) * 100
+      : typeof meta.fulldayChangePercent === 'number'
+      ? meta.fulldayChangePercent
+      : typeof meta.regularMarketChangePercent === 'number'
+      ? meta.regularMarketChangePercent
+      : (prevClose !== 0 ? (change1D / prevClose) * 100 : 0);
+
+  // 7D Period Change (comparing today's price vs close 7 days ago)
   const price7DaysAgo = sparkline.length > 1
     ? sparkline[0]
-    : (symbol.toUpperCase() === '^CASE30' ? curPrice * 0.985 : symbol.toUpperCase() === '^EGX70EWI.CA' ? curPrice * 0.978 : prevClose);
+    : prevClose;
   const change7D = curPrice - price7DaysAgo;
   const changePercent7D = price7DaysAgo !== 0 ? ((curPrice - price7DaysAgo) / price7DaysAgo) * 100 : changePercent1D;
 
   // Volumes and values
   const validVolumes = rawVolumes.filter((v: any) => typeof v === 'number' && !isNaN(v) && v > 0);
-  const volume = meta.regularMarketVolume || validVolumes[validVolumes.length - 1] || 0;
+  const volume = validVolumes[validVolumes.length - 1] || meta.regularMarketVolume || 0;
   const tradingValue = volume * curPrice;
 
   // High / low / 1D sparkline
@@ -107,13 +126,16 @@ function parseChartResult(symbol: string, json: any): StockQuote | null {
   const validLows = rawLows.filter((v: any) => typeof v === 'number' && !isNaN(v) && v > 0);
   const validOpens = rawOpens.filter((v: any) => typeof v === 'number' && !isNaN(v) && v > 0);
 
-  const dayHigh = meta.regularMarketDayHigh ?? (validHighs.length > 0 ? validHighs[validHighs.length - 1] : curPrice);
-  const dayLow = meta.regularMarketDayLow ?? (validLows.length > 0 ? validLows[validLows.length - 1] : curPrice);
+  const dayHigh = validHighs.length > 0 ? validHighs[validHighs.length - 1] : (meta.regularMarketDayHigh ?? curPrice);
+  const dayLow = validLows.length > 0 ? validLows[validLows.length - 1] : (meta.regularMarketDayLow ?? curPrice);
   const dayOpen = validOpens.length > 0 ? validOpens[validOpens.length - 1] : prevClose;
 
   const sparkline1D = [prevClose, dayOpen, dayLow, dayHigh, curPrice].filter(
     (v) => typeof v === 'number' && !isNaN(v) && v > 0
   );
+
+  const low52 = meta.fiftyTwoWeekLow ? Math.min(meta.fiftyTwoWeekLow, curPrice) : curPrice * 0.72;
+  const high52 = meta.fiftyTwoWeekHigh ? Math.max(meta.fiftyTwoWeekHigh, curPrice) : curPrice * 1.28;
 
   return {
     symbol: symbol.toUpperCase(),
@@ -128,11 +150,11 @@ function parseChartResult(symbol: string, json: any): StockQuote | null {
     changePercent7D,
     dayLow,
     dayHigh,
-    fiftyTwoWeekLow: meta.fiftyTwoWeekLow ?? curPrice * 0.72,
-    fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? curPrice * 1.28,
+    fiftyTwoWeekLow: low52,
+    fiftyTwoWeekHigh: high52,
     volume,
     tradingValue,
-    regularMarketTime: meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now(),
+    regularMarketTime: isMetaStale ? Date.now() : (meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now()),
     sparkline: sparkline.slice(-7),
     sparkline1D,
   };
@@ -270,7 +292,7 @@ export async function searchSymbols(
           .filter((q: any) => q.symbol?.endsWith('.CA') || q.exchange === 'CAI')
           .map((q: any) => ({
             symbol: q.symbol,
-            name: q.shortname || q.longname || q.symbol,
+            name: q.longname || q.shortname || q.symbol,
             exchange: 'CAI',
             isCairo: true,
           }));
@@ -290,7 +312,7 @@ export async function searchSymbols(
         .filter((q: any) => q.symbol?.endsWith('.CA') || q.exchange === 'CAI')
         .map((q: any) => ({
           symbol: q.symbol,
-          name: q.shortname || q.longname || q.symbol,
+          name: q.longname || q.shortname || q.symbol,
           exchange: 'CAI',
           isCairo: true,
         }));

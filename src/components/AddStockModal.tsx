@@ -17,6 +17,16 @@ interface AddStockModalProps {
   onAddStock: (stock: Omit<StockItem, 'order'>) => void;
 }
 
+function normalizeArabic(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/[\u064B-\u065F]/g, '')
+    .trim();
+}
+
 export const AddStockModal: React.FC<AddStockModalProps> = ({
   isOpen,
   onClose,
@@ -39,45 +49,53 @@ export const AddStockModal: React.FC<AddStockModalProps> = ({
 
   // Debounced search strictly for Egyptian Exchange stocks
   useEffect(() => {
-    if (!query.trim()) {
+    const trimmed = query.trim();
+    if (!trimmed) {
       setSearchResults([]);
       setIsSearching(false);
       return;
     }
 
+    let cancelled = false;
     const timer = setTimeout(async () => {
       setIsSearching(true);
-      const cleanQ = query.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      const rawTrimmed = query.trim().toLowerCase();
+      const cleanQ = trimmed.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const normQ = normalizeArabic(trimmed);
 
-      // 1. Strict Egyptian local catalog match
+      // 1. Strict Egyptian local catalog match (guard cleanQ.length > 0 so Arabic queries don't match "")
       const catalogMatches = EGX_POPULAR_CATALOG.filter((item) => {
         const itemCleanSym = getDisplaySymbol(item.symbol).toUpperCase();
-        return (
-          itemCleanSym.includes(cleanQ) ||
-          item.name.toLowerCase().includes(rawTrimmed) ||
-          item.keywords.toLowerCase().includes(rawTrimmed)
-        );
-      }).map((item) => ({
-        symbol: item.symbol,
-        name: item.name,
-        sector: item.sector,
-        isCairo: true,
-      }));
+        const symbolMatch = cleanQ.length > 0 && itemCleanSym.includes(cleanQ);
+        const nameMatch = normQ.length > 0 && normalizeArabic(item.name).includes(normQ);
+        const keywordMatch = normQ.length > 0 && normalizeArabic(item.keywords).includes(normQ);
+        return symbolMatch || nameMatch || keywordMatch;
+      })
+        .sort((a, b) => {
+          const aSym = getDisplaySymbol(a.symbol).toUpperCase();
+          const bSym = getDisplaySymbol(b.symbol).toUpperCase();
+          const aExact = cleanQ.length > 0 && aSym === cleanQ ? 0 : cleanQ.length > 0 && aSym.startsWith(cleanQ) ? 1 : normalizeArabic(a.name).includes(normQ) ? 2 : 3;
+          const bExact = cleanQ.length > 0 && bSym === cleanQ ? 0 : cleanQ.length > 0 && bSym.startsWith(cleanQ) ? 1 : normalizeArabic(b.name).includes(normQ) ? 2 : 3;
+          return aExact - bExact;
+        })
+        .map((item) => ({
+          symbol: item.symbol,
+          name: item.name,
+          sector: item.sector,
+          isCairo: true,
+        }));
 
       // 2. Fetch from EGX-only search endpoint
       try {
-        const apiResults = await searchSymbols(query);
+        const apiResults = await searchSymbols(trimmed);
+        if (cancelled) return;
         const combined = [...catalogMatches];
 
         for (const res of apiResults) {
-          // STRICT: Double check it's Cairo
           if (!res.isCairo && !res.symbol.endsWith('.CA') && res.exchange !== 'CAI') {
             continue;
           }
 
           if (!combined.some((c) => c.symbol.toUpperCase() === res.symbol.toUpperCase())) {
-            // Find sector in catalog if available
             const foundInCat = EGX_POPULAR_CATALOG.find(
               (c) => c.symbol.toUpperCase() === res.symbol.toUpperCase()
             );
@@ -90,14 +108,17 @@ export const AddStockModal: React.FC<AddStockModalProps> = ({
           }
         }
         setSearchResults(combined);
-      } catch (err) {
-        setSearchResults(catalogMatches);
+      } catch {
+        if (!cancelled) setSearchResults(catalogMatches);
       } finally {
-        setIsSearching(false);
+        if (!cancelled) setIsSearching(false);
       }
     }, 250);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [query]);
 
   if (!isOpen) return null;

@@ -42,11 +42,15 @@ The application is 100% data-driven and free of AI chatbots or generative clutte
   - **Active Session**: Auto-refreshes stock prices every 2 minutes.
   - **Closed Session**: Pauses background polling and preserves the latest official closing prices to save device battery and mobile data.
 - **Strict Egyptian Exchange Search**:
-  - Search modal exclusively queries Egyptian stocks (`.CA` / `exchange === 'CAI'`), preventing irrelevant foreign exchange clutter.
+  - Search modal exclusively queries Egyptian Exchange (EGX) stocks, preventing irrelevant foreign exchange clutter.
   - Built-in catalog supporting popular Arabic company names and colloquial aliases (e.g., searching "طلعت مصطفى" directly maps to `TMGH`).
+- **Zero-Login Multi-Device Cloud Sync**:
+  - Share and synchronize your watchlist, refresh frequency, sorting, and chart range (`1D`/`7D`) between desktop and mobile using a short **Secret Sync Code** (e.g., `SYNC-4K9M`)—no Google Sign-In, accounts, or passwords required.
+  - Automatic startup cloud pull when online and debounced auto-push on local changes, plus manual **Push**, **Pull**, **Copy**, and **Unlink** controls.
+  - Offline JSON Export/Import fallback included directly inside the Sync & Backup modals.
 - **Complete Watchlist Management**:
   - Reorder stocks up/down, edit custom display names or sectors, and remove items.
-  - Full backup system: Export and import watchlist JSON files or reset to top EGX 30 blue chips.
+  - Full backup system: Export and import watchlist JSON files or reset to top EGX blue chips.
 
 ---
 
@@ -76,11 +80,13 @@ EGX Pulse is a certified **Progressive Web App (PWA)** that can be installed on 
   - Vite 8 + `@tailwindcss/vite` (Tailwind CSS v4)
   - `vite-plugin-pwa` (Workbox Service Worker + Web App Manifest)
   - `lucide-react` (Feather-style UI icons)
-- **Backend Proxy & Functions (Netlify)**:
-  - `netlify/functions/quotes.ts`: Serverless function accepting `?symbols=SYM1,SYM2,...`, fetching quotes concurrently from Yahoo Finance, and returning structured EGP metrics.
-  - `netlify/functions/search.ts`: Serverless search function filtering exclusively for Cairo Exchange stocks.
-  - `devApiProxyPlugin` in `vite.config.ts`: Local development middleware mirroring the Netlify functions for fast local debugging.
-  - Public CORS fallback in `src/services/quotesService.ts` for environments without serverless function runtimes.
+- **Backend Proxy, Sync & Functions (Netlify)**:
+  - `netlify/functions/quotes.ts`: Serverless function fetching live EGX stock & index quotes (`EGX30`, `EGX70EWI`), 1D/7D performance, volume, turnover, and 52-week ranges via TradingView's Egypt scanner API, merged with Yahoo Finance historical daily bars for 7-day sparklines.
+  - `netlify/functions/search.ts`: Serverless search function querying Egyptian Exchange equities exclusively.
+  - `netlify/functions/sync.ts`: Serverless cloud sync endpoint (`GET`/`POST /api/sync`) backed by **`@netlify/blobs`** with strong consistency for zero-login cross-device state persistence.
+  - `devApiProxyPlugin` in `vite.config.ts`: Local development middleware mirroring `/api/quotes`, `/api/search`, and an in-memory `/api/sync` store for instant local testing without Netlify CLI.
+  - `src/services/syncService.ts`: Client sync manager generating `SYNC-XXXX` codes, persisting local sync metadata, and coordinating auto-pull/debounced auto-push.
+  - Public CORS fallback in `src/services/quotesService.ts` with stale-quote protection for static environments without serverless runtimes.
 
 ---
 
@@ -133,8 +139,8 @@ You can deploy the built `dist/` folder to any static hosting provider. The fron
 
 - **100% Safe for Public Repositories**: This project contains **no private API keys, secrets, access tokens, database passwords, or personal credentials**.
 - **Public Data Source**: Stock data is obtained via public market endpoints without requiring paid accounts or authorization headers.
-- **Local Privacy**: User watchlists, reordering, and interval settings are saved exclusively in the user's browser `localStorage`. No telemetry or user information is transmitted to external servers.
-- **`.gitignore`**: Configured to ignore all `.env*` files, build output (`dist/`), local caches, and dependencies.
+- **Privacy & Sync Model**: Watchlists and preferences stay in browser `localStorage` by default. When Multi-Device Cloud Sync is enabled, only your anonymous watchlist configuration is stored under your randomly generated `SYNC-XXXX` key in Netlify Blobs—with zero user accounts, emails, or personal identifiers. Keep your sync code private so only your devices can read or update that watchlist.
+- **`.gitignore`**: Configured to ignore all `.env*` files, build output (`dist/`, `dev-dist/`, `.netlify/`), local caches, and dependencies.
 
 ---
 
@@ -143,8 +149,9 @@ You can deploy the built `dist/` folder to any static hosting provider. The fron
 ```text
 ├── netlify/
 │   └── functions/
-│       ├── quotes.ts        # Netlify function: batch stock & index quotes
-│       └── search.ts        # Netlify function: strict Cairo exchange search
+│       ├── quotes.ts        # Netlify function: live EGX quotes + 7D sparkline history
+│       ├── search.ts        # Netlify function: strict EGX-only symbol & name search
+│       └── sync.ts          # Netlify function: @netlify/blobs cloud sync (GET/POST /api/sync)
 ├── public/
 │   ├── apple-touch-icon.png # 180x180 iOS home screen icon
 │   ├── favicon.ico
@@ -154,18 +161,18 @@ You can deploy the built `dist/` folder to any static hosting provider. The fron
 │   ├── pwa-512x512.png      # High-res splash icon
 │   └── pwa-maskable-512x512.png # Adaptive maskable icon
 ├── src/
-│   ├── components/          # UI components (Tiles, Status Bar, Modals, Sparklines)
+│   ├── components/          # UI components (Tiles, Status Bar, Sync/Add/Backup Modals, Sparklines)
 │   ├── data/                # Default EGX watchlist & popular stock catalog
 │   ├── hooks/               # PWA install prompt hook
-│   ├── services/            # Quotes fetching service, cache, and search
-│   ├── types/               # TypeScript interfaces (StockQuote, StockItem, etc.)
+│   ├── services/            # Quotes fetching, cloud sync (syncService.ts), and caching
+│   ├── types/               # TypeScript interfaces (StockQuote, StockItem, Sync types)
 │   ├── utils/               # EGX market hours and Cairo timezone calculations
-│   ├── App.tsx              # Root component & state management
+│   ├── App.tsx              # Root component, state & auto-sync lifecycle
 │   ├── index.css            # Tailwind CSS v4 styling
 │   └── main.tsx             # Application entry point
 ├── netlify.toml             # Netlify deployment configuration & redirects
 ├── package.json
-└── vite.config.ts           # Vite, PWA plugin & local dev proxy setup
+└── vite.config.ts           # Vite, PWA plugin & local dev API proxy (/api/quotes, /api/search, /api/sync)
 ```
 
 ---
