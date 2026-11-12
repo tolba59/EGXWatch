@@ -1,0 +1,6 @@
+{
+  "name": "EGX Watch",
+  "description": "تطبيق ويب تقدمي (PWA) متكامل باللغة العربية لمتابعة أسعار وأداء الأسهم المقيدة في البورصة المصرية ومؤشر EGX 30 ورسوم بيانية أسبوعية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

@@ -1,0 +1,35 @@
+{
+  "id": "/",
+  "name": "نبض البورصة المصرية - محفظة أسهم EGX",
+  "short_name": "نبض البورصة",
+  "description": "تطبيق ويب تقدمي لمتابعة أسعار وأداء الأسهم المقيدة في البورصة المصرية لحظة بلحظة وبدون تعقيد.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#ffffff",
+  "background_color": "#f8fafc",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["finance", "business"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

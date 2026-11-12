@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#064E3B" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#A7F3D0" />
+      <stop offset="50%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#FDE68A" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Inner subtle border -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="4" />
+
+  <!-- Center Graphic: Financial Candlesticks + Pulse Line + Egyptian Heritage Accent -->
+  <g filter="url(#shadow)">
+    <!-- Candlestick 1 (Left) -->
+    <line x1="120" y1="200" x2="120" y2="380" stroke="#34D399" stroke-width="6" stroke-linecap="round" />
+    <rect x="100" y="240" width="40" height="100" rx="8" fill="#10B981" />
+
+    <!-- Candlestick 2 (Middle Left) -->
+    <line x1="200" y1="160" x2="200" y2="360" stroke="#34D399" stroke-width="6" stroke-linecap="round" />
+    <rect x="180" y="200" width="40" height="120" rx="8" fill="#059669" />
+
+    <!-- Candlestick 3 (Middle Right) -->
+    <line x1="280" y1="140" x2="280" y2="340" stroke="#FDE68A" stroke-width="6" stroke-linecap="round" />
+    <rect x="260" y="170" width="40" height="130" rx="8" fill="url(#goldGrad)" />
+
+    <!-- Candlestick 4 (Right - Breakout) -->
+    <line x1="360" y1="100" x2="360" y2="300" stroke="#FDE68A" stroke-width="6" stroke-linecap="round" />
+    <rect x="340" y="120" width="40" height="140" rx="8" fill="#FBBF24" />
+
+    <!-- Ascending Dynamic Pulse Line -->
+    <path d="M 80 340 L 140 290 L 210 310 L 290 190 L 370 140 L 430 90" 
+          fill="none" 
+          stroke="url(#lineGrad)" 
+          stroke-width="12" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" />
+
+    <!-- Pulse Node with Glow -->
+    <circle cx="430" cy="90" r="16" fill="#F59E0B" stroke="#FFFFFF" stroke-width="6" />
+  </g>
+
+  <!-- Typography / Symbol: EGX in LTR -->
+  <text x="256" y="440" font-family="'Cairo', sans-serif" font-weight="900" font-size="52" fill="#FFFFFF" text-anchor="middle" letter-spacing="4">
+    EGX • البورصة
+  </text>
+</svg>
