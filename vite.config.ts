@@ -7,6 +7,13 @@ import { VitePWA } from 'vite-plugin-pwa';
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+// In-memory store for /api/sync during local development and preview
+const devSyncStore = new Map<string, { code: string; data: unknown; updatedAt: number }>();
+
+function normalizeDevSyncCode(raw: string): string {
+  return raw.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+}
+
 // Dev server middleware plugin for local development in AI Studio
 function devApiProxyPlugin(): Plugin {
   return {
@@ -18,6 +25,81 @@ function devApiProxyPlugin(): Plugin {
         }
 
         const url = new URL(req.url, 'http://localhost');
+
+        if (url.pathname === '/api/sync') {
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.setHeader('Cache-Control', 'no-store');
+
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 204;
+            res.end();
+            return;
+          }
+
+          if (req.method === 'GET') {
+            const code = normalizeDevSyncCode(url.searchParams.get('code') || '');
+            if (!/^[A-Z0-9-]{4,32}$/.test(code)) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'رمز المزامنة غير صالح' }));
+              return;
+            }
+            const record = devSyncStore.get(code);
+            if (!record) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'لم يتم العثور على بيانات محفوظة لهذا الرمز', notFound: true }));
+              return;
+            }
+            res.statusCode = 200;
+            res.end(JSON.stringify(record));
+            return;
+          }
+
+          if (req.method === 'POST') {
+            try {
+              const chunks: Buffer[] = [];
+              for await (const chunk of req) {
+                chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+              }
+              const rawBody = Buffer.concat(chunks).toString('utf8');
+              const payload = JSON.parse(rawBody || '{}');
+              const code = normalizeDevSyncCode(String(payload.code || ''));
+
+              if (!/^[A-Z0-9-]{4,32}$/.test(code)) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'رمز المزامنة غير صالح' }));
+                return;
+              }
+              if (!payload.data || typeof payload.data !== 'object') {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'بيانات المزامنة غير صالحة' }));
+                return;
+              }
+
+              const updatedAt =
+                typeof payload.updatedAt === 'number' && !isNaN(payload.updatedAt)
+                  ? payload.updatedAt
+                  : Date.now();
+
+              const record = { code, data: payload.data, updatedAt };
+              devSyncStore.set(code, record);
+
+              res.statusCode = 200;
+              res.end(JSON.stringify({ ok: true, code, updatedAt }));
+              return;
+            } catch (e: any) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: e?.message || 'صيغة JSON غير صالحة' }));
+              return;
+            }
+          }
+
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
 
         if (url.pathname === '/api/quotes') {
           try {

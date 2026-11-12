@@ -5,11 +5,14 @@ import {
   SlidersHorizontal,
   Database,
   Clock,
+  Cloud,
+  Loader2,
 } from 'lucide-react';
 import {
   StockQuote,
   RefreshInterval,
   ChartRange,
+  SyncStatus,
 } from '../types/stock';
 import { EGXMarketInfo } from '../utils/egxMarketHours';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -29,6 +32,9 @@ interface TopStatusBarProps {
   isEditMode: boolean;
   onToggleEditMode: () => void;
   onOpenBackupModal: () => void;
+  syncCode: string | null;
+  syncStatus: SyncStatus;
+  onOpenSyncModal: () => void;
 }
 
 export const TopStatusBar: React.FC<TopStatusBarProps> = ({
@@ -46,6 +52,9 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
   isEditMode,
   onToggleEditMode,
   onOpenBackupModal,
+  syncCode,
+  syncStatus,
+  onOpenSyncModal,
 }) => {
   // Format last updated time cleanly with AM/PM in Arabic
   const lastUpdatedFormatted = lastUpdated
@@ -260,11 +269,36 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
             </button>
           </div>
 
-          {/* Right: Edit Mode & Backup Buttons */}
-          <div className="flex items-center gap-1.5">
+          {/* Right: Sync, Edit Mode & Backup Buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={onOpenSyncModal}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] sm:text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                syncCode
+                  ? 'bg-emerald-50 hover:bg-emerald-100/80 border-emerald-300 text-emerald-800'
+                  : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+              }`}
+              title={syncCode ? `متصل بالمزامنة السحابية (${syncCode})` : 'مزامنة القائمة بين الأجهزة'}
+            >
+              {syncStatus === 'syncing' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
+              ) : (
+                <Cloud className={`w-3.5 h-3.5 shrink-0 ${syncCode ? 'text-emerald-600' : 'text-slate-500'}`} />
+              )}
+              <span>مزامنة</span>
+              {syncCode && (
+                <span
+                  dir="ltr"
+                  className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-600 text-white tracking-wide"
+                >
+                  {syncCode}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={onToggleEditMode}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] sm:text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 isEditMode
                   ? 'bg-amber-500 border-amber-600 text-white shadow-2xs'
                   : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
@@ -277,7 +311,7 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
 
             <button
               onClick={onOpenBackupModal}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer shrink-0"
               title="النسخ الاحتياطي وإدارة القائمة"
             >
               <Database className="w-3.5 h-3.5" />

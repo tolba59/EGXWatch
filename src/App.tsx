@@ -3,19 +3,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   StockItem,
   StockQuote,
   RefreshInterval,
   SortOption,
   ChartRange,
+  SyncDashboardData,
+  SyncStatus,
 } from './types/stock';
 import { DEFAULT_WATCHLIST, SECTORS } from './data/defaultWatchlist';
 import {
   fetchStockQuotes,
   getCachedQuotes,
 } from './services/quotesService';
+import {
+  generateSyncCode,
+  getLastSyncedAt,
+  getLocalUpdatedAt,
+  getStoredSyncCode,
+  pullFromCloud,
+  pushToCloud,
+  setLastSyncedAt,
+  setLocalUpdatedAt,
+  setStoredSyncCode,
+  unlinkSync,
+} from './services/syncService';
 import { getEGXMarketInfo, EGXMarketInfo } from './utils/egxMarketHours';
 import { TopStatusBar } from './components/TopStatusBar';
 import { FilterAndSortBar } from './components/FilterAndSortBar';
@@ -23,6 +37,7 @@ import { StockTile } from './components/StockTile';
 import { AddStockModal } from './components/AddStockModal';
 import { EditStockModal } from './components/EditStockModal';
 import { BackupModal } from './components/BackupModal';
+import { SyncModal } from './components/SyncModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Plus, SlidersHorizontal } from 'lucide-react';
 
@@ -74,7 +89,15 @@ export default function App() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [editingStock, setEditingStock] = useState<StockItem | null>(null);
+
+  // 6. Multi-Device Cloud Sync state
+  const [syncCode, setSyncCode] = useState<string | null>(() => getStoredSyncCode());
+  const [lastSyncedAt, setLastSyncedAtState] = useState<number | null>(() => getLastSyncedAt());
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const hasMountedSyncRef = useRef(false);
+  const suppressNextAutoPushRef = useRef(false);
 
   // Save watchlist to localStorage whenever it changes
   useEffect(() => {
@@ -84,6 +107,117 @@ export default function App() {
       console.warn('Failed to save watchlist', e);
     }
   }, [watchlist]);
+
+  const applyCloudData = useCallback((cloudData: SyncDashboardData, cloudUpdatedAt: number) => {
+    suppressNextAutoPushRef.current = true;
+    if (Array.isArray(cloudData.watchlist) && cloudData.watchlist.length > 0) {
+      setWatchlist(cloudData.watchlist);
+    }
+    if (cloudData.refreshInterval) {
+      setRefreshInterval(cloudData.refreshInterval);
+      localStorage.setItem(STORAGE_KEY_INTERVAL, cloudData.refreshInterval);
+    }
+    if (cloudData.chartRange) {
+      setChartRange(cloudData.chartRange);
+      localStorage.setItem(STORAGE_KEY_CHART_RANGE, cloudData.chartRange);
+    }
+    if (cloudData.sortOption) {
+      setSortOption(cloudData.sortOption);
+    }
+    const now = Date.now();
+    setLocalUpdatedAt(cloudUpdatedAt);
+    setLastSyncedAt(now);
+    setLastSyncedAtState(now);
+  }, []);
+
+  // Auto-pull latest cloud state on app startup if linked & online
+  useEffect(() => {
+    const initialCode = getStoredSyncCode();
+    if (!initialCode) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
+    let cancelled = false;
+    setSyncStatus('syncing');
+
+    pullFromCloud(initialCode)
+      .then(async (record) => {
+        if (cancelled) return;
+        if (record) {
+          const localTs = getLocalUpdatedAt();
+          if (!localTs || record.updatedAt >= localTs) {
+            applyCloudData(record.data, record.updatedAt);
+          } else {
+            await pushToCloud(
+              initialCode,
+              { watchlist, refreshInterval, chartRange, sortOption },
+              localTs
+            );
+            if (!cancelled) {
+              setLastSyncedAtState(Date.now());
+            }
+          }
+          if (!cancelled) setSyncStatus('synced');
+        } else {
+          // If the code isn't on server yet (e.g. fresh local dev session), seed it
+          await pushToCloud(initialCode, {
+            watchlist,
+            refreshInterval,
+            chartRange,
+            sortOption,
+          });
+          if (!cancelled) {
+            setLastSyncedAtState(Date.now());
+            setSyncStatus('synced');
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Startup cloud sync failed:', err);
+        if (!cancelled) setSyncStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced auto-push whenever dashboard data changes locally while linked
+  useEffect(() => {
+    if (!hasMountedSyncRef.current) {
+      hasMountedSyncRef.current = true;
+      return;
+    }
+
+    if (suppressNextAutoPushRef.current) {
+      suppressNextAutoPushRef.current = false;
+      return;
+    }
+
+    const changeTs = Date.now();
+    setLocalUpdatedAt(changeTs);
+
+    if (!syncCode) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
+    const timer = setTimeout(async () => {
+      setSyncStatus('syncing');
+      try {
+        await pushToCloud(
+          syncCode,
+          { watchlist, refreshInterval, chartRange, sortOption },
+          changeTs
+        );
+        setLastSyncedAtState(Date.now());
+        setSyncStatus('synced');
+      } catch (err) {
+        console.warn('Auto-push sync failed:', err);
+        setSyncStatus('error');
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [watchlist, refreshInterval, chartRange, sortOption, syncCode]);
 
   const handleChangeRefreshInterval = (interval: RefreshInterval) => {
     setRefreshInterval(interval);
@@ -213,6 +347,85 @@ export default function App() {
     refreshQuotes();
   };
 
+  // Cloud Sync Handlers
+  const handleGenerateSyncCode = async () => {
+    const newCode = generateSyncCode();
+    setSyncStatus('syncing');
+    try {
+      const res = await pushToCloud(newCode, {
+        watchlist,
+        refreshInterval,
+        chartRange,
+        sortOption,
+      });
+      setSyncCode(res.code);
+      setLastSyncedAtState(Date.now());
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+      throw err;
+    }
+  };
+
+  const handleConnectSyncCode = async (rawCode: string) => {
+    setSyncStatus('syncing');
+    try {
+      const record = await pullFromCloud(rawCode);
+      if (!record) {
+        setSyncStatus('idle');
+        throw new Error('لم يتم العثور على بيانات محفوظة لهذا الرمز. تأكد من كتابته بشكل صحيح.');
+      }
+      setStoredSyncCode(record.code);
+      setSyncCode(record.code);
+      applyCloudData(record.data, record.updatedAt);
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+      throw err;
+    }
+  };
+
+  const handlePushManual = async () => {
+    if (!syncCode) return;
+    setSyncStatus('syncing');
+    try {
+      await pushToCloud(syncCode, {
+        watchlist,
+        refreshInterval,
+        chartRange,
+        sortOption,
+      });
+      setLastSyncedAtState(Date.now());
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+      throw err;
+    }
+  };
+
+  const handlePullManual = async () => {
+    if (!syncCode) return;
+    setSyncStatus('syncing');
+    try {
+      const record = await pullFromCloud(syncCode);
+      if (!record) {
+        throw new Error('لم يتم العثور على بيانات لهذا الرمز على السحابة.');
+      }
+      applyCloudData(record.data, record.updatedAt);
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+      throw err;
+    }
+  };
+
+  const handleUnlinkSync = () => {
+    unlinkSync();
+    setSyncCode(null);
+    setLastSyncedAtState(null);
+    setSyncStatus('idle');
+  };
+
   const existingSymbols = useMemo(
     () => new Set(watchlist.map((w) => w.symbol.toUpperCase())),
     [watchlist]
@@ -334,6 +547,9 @@ export default function App() {
         isEditMode={isEditMode}
         onToggleEditMode={() => setIsEditMode((prev) => !prev)}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
+        syncCode={syncCode}
+        syncStatus={syncStatus}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -447,6 +663,21 @@ export default function App() {
         watchlist={watchlist}
         onImport={handleImportWatchlist}
         onResetToDefault={handleResetToDefault}
+      />
+
+      <SyncModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        syncCode={syncCode}
+        lastSyncedAt={lastSyncedAt}
+        syncStatus={syncStatus}
+        watchlist={watchlist}
+        onGenerateCode={handleGenerateSyncCode}
+        onConnectCode={handleConnectSyncCode}
+        onPushToCloud={handlePushManual}
+        onPullFromCloud={handlePullManual}
+        onUnlink={handleUnlinkSync}
+        onImportWatchlist={handleImportWatchlist}
       />
 
       <OfflineIndicator />

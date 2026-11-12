@@ -68,3 +68,19 @@ export function toQuerySymbol(symbol: string): string {
   }
   return `${clean}.CA`;
 }
+
+export interface SyncDashboardData {
+  watchlist: StockItem[];
+  refreshInterval: RefreshInterval;
+  chartRange: ChartRange;
+  sortOption?: SortOption;
+}
+
+export interface SyncCloudRecord {
+  code: string;
+  data: SyncDashboardData;
+  updatedAt: number;
+}
+
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error';
+
