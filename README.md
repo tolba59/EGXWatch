@@ -1,155 +1,174 @@
 # 🇪🇬 نبض البورصة المصرية | EGX Pulse
 
-> **تطبيق ويب تقدمي (PWA) فوري وخفيف باللغة العربية (RTL) لمتابعة أسعار وأداء أسهم البورصة المصرية (EGX) ومؤشري EGX 30 و EGX 70 EWI لحظة بلحظة.**
+> **A responsive, clean, light-mode financial watchlist Progressive Web App (PWA) in full Arabic (RTL) dedicated to tracking live prices, session metrics, and weekly trends for Egyptian Exchange (EGX) stocks and key benchmarks (`EGX 30` & `EGX 70 EWI`).**
 
 ![React](https://img.shields.io/badge/React-19-blue?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
 ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-38bdf8?logo=tailwindcss)
 ![Vite](https://img.shields.io/badge/Vite-8-646cff?logo=vite)
-![PWA](https://img.shields.io/badge/PWA-Ready-emerald)
+![PWA](https://img.shields.io/badge/PWA-Installable-emerald?logo=pwa)
 ![License](https://img.shields.io/badge/License-Apache--2.0-green)
 
 ---
 
-## 📱 نظرة عامة (Overview)
+## 📱 Overview
 
-**نبض البورصة المصرية** هو تطبيق مالي شخصي صُمم خصيصاً للمستثمر في السوق المصري ليعمل بسلاسة فائقة وسرعة عالية على الهواتف المحمولة والمتصفحات، مع إمكانية تثبيته مباشرة على الشاشة الرئيسية (PWA) دون الحاجة لمتجر تطبيقات.
+**EGX Pulse (نبض البورصة المصرية)** is a deterministic, fast, mobile-first personal watchlist application designed specifically for investors and traders in the Egyptian stock market. It is engineered to deliver zero-lag market insights natively in Egyptian Pounds (**ج.م** / EGP) without requiring app store installations or third-party accounts.
 
-التطبيق حتمي بنسبة 100% (Deterministic)، خفيف الوزن، ويعتمد على البيانات اللحظية والتحليل الرقمي الدقيق لأسعار الأسهم بالجنيه المصري (**ج.م**).
-
----
-
-## ✨ المميزات الرئيسية (Features)
-
-- **واجهة عربية أصيلة بتصميم متجاوب (RTL & Light Mode)**:
-  - دعم كامل لاتجاه اليمين لليسار (`dir="rtl"`) مع خط عربي أنيق وواضح.
-  - الحفاظ على الأكواد والرموز (`dir="ltr"`) بدون انعكاس، مع أرقام جدولية (`tabular-nums`) لمحاذاة الأسعار عمودياً.
-- **رموز الأسهم بـ 4 أحرف مختصرة**:
-  - عرض الأكواد الأساسية للشركات المصرية مباشرة (مثل: `COMI`, `TMGH`, `SWDY`, `MFPC`, `EGAL`, `HELI`) دون لاحقة `.CA`.
-- **التبديل اللحظي بين أداء اليوم و 7 أيام (1D vs 7D)**:
-  - **اليوم (`1D`)**: نسبة وتغير جلسة اليوم الحالية مقارنة بإغلاق الأمس.
-  - **7 أيام (`7D`)**: نسبة ومقدار العائد التراكمي على مدار الأسبوع مع رسم بياني مصغر (Sparkline).
-- **بيانات التداول اليومية (حجم وقيمة)**:
-  - عرض كمية التداول (عدد الأسهم المنفذة: K/M سهم).
-  - عرض قيمة التداول الإجمالية بالجنيه المصري (ج.م).
-  - مؤشر موقع السعر من أعلى وأدنى سعر خلال 52 أسبوعاً.
-- **مؤشرات السوق الرئيسية في الشريط العلوي**:
-  - بطاقة مؤشر **EGX 30**.
-  - بطاقة مؤشر **EGX 70 EWI**.
-  - شريط حالة الجلسة وتوقيت القاهرة الحالي.
-- **إدارة ذكية لجلسات التداول (Market-Aware Auto-Refresh)**:
-  - تحديث تلقائي للأسعار كل دقيقتين **أثناء ساعات عمل السوق فقط** (الأحد إلى الخميس من 09:30 ص حتى 02:45 م بتوقيت القاهرة).
-  - إيقاف التحديث التلقائي وتثبيت آخر الأسعار خارج أوقات الجلسة وأيام العطلات توفيراً للبيانات وطاقة الهاتف.
-- **بحث مخصص ودقيق للشركات المصرية فقط**:
-  - نافذة بحث سريعة ومقيدة حصرياً بأسهم البورصة المصرية (`.CA` / `CAI`).
-  - دليل داخلي بأشهر الأسهم المصرية مع دعم الأسماء الدارجة والبديلة (مثل: "طلعت مصطفى", "السويدي", "فوري", "مصر للألومنيوم").
-  - إضافة أي سهم مصري للقائمة بنقرة واحدة.
-- **تطبيق ويب تقدمي قابل للتثبيت (Installable PWA)**:
-  - يعمل كتطبيق مستقل (Standalone) على شاشة الهاتف.
-  - تخزين مؤقت للعمل دون اتصال بالإنترنت (Offline Mode).
-- **إدارة كاملة لقائمة المتابعة (Watchlist Management)**:
-  - ترتيب مخصص للأسهم، تعديل الأسماء، حذف الأسهم.
-  - نسخ احتياطي كامل وتصدير/استيراد لملفات JSON أو إعادة الضبط للقائمة الافتراضية.
+The application is 100% data-driven and free of AI chatbots or generative clutter, ensuring instant load times and reliable numeric calculations.
 
 ---
 
-## 🛠️ البنية التقنية (Tech Stack)
+## ✨ Key Features
 
-- **الواجهة الأمامية (Frontend)**:
+- **Full Arabic & RTL Experience (`dir="rtl"`)**:
+  - Native Arabic typography loaded via Google Fonts (**Cairo** and **IBM Plex Sans Arabic**).
+  - Tickers, percentage changes, prices, and sparklines use `dir="ltr"` and `tabular-nums` to prevent number reversal and keep columns aligned.
+- **Clean 4-Letter Display Tickers**:
+  - Displays familiar Egyptian stock symbols directly (e.g., `COMI`, `TMGH`, `SWDY`, `MFPC`, `EGAL`, `HELI`) by omitting the `.CA` exchange suffix.
+- **Dynamic 1D vs. 7D Period Toggle**:
+  - **1D (اليوم)**: Today's live trading session change (vs. yesterday's official close) and intraday trajectory.
+  - **7D (٧ أيام)**: 7-day cumulative return (vs. price 7 days ago) with a 7-day SVG sparkline chart.
+  - Percentage badges and tile heatmap borders dynamically reflect the selected period.
+- **Daily Trading Activity**:
+  - **Trading Volume (كمية التداول)**: Number of shares traded today (formatted in `K` and `M` shares).
+  - **Trading Value (قيمة التداول)**: Total traded turnover today in Egyptian Pounds (`ج.م`).
+  - **52-Week Range Bar**: Visual indicator showing where the current price sits between the annual low and high.
+- **Top Benchmark Indices**:
+  - **مؤشر EGX 30**: Real-time index points and session/weekly percentage.
+  - **مؤشر EGX 70 EWI**: Real-time small/mid-cap index points and return.
+- **Market Session Awareness**:
+  - Automatically calculates Cairo Exchange trading hours (**09:30 AM to 02:45 PM Sun–Thu, Cairo Time**).
+  - **Active Session**: Auto-refreshes stock prices every 2 minutes.
+  - **Closed Session**: Pauses background polling and preserves the latest official closing prices to save device battery and mobile data.
+- **Strict Egyptian Exchange Search**:
+  - Search modal exclusively queries Egyptian stocks (`.CA` / `exchange === 'CAI'`), preventing irrelevant foreign exchange clutter.
+  - Built-in catalog supporting popular Arabic company names and colloquial aliases (e.g., searching "طلعت مصطفى" directly maps to `TMGH`).
+- **Complete Watchlist Management**:
+  - Reorder stocks up/down, edit custom display names or sectors, and remove items.
+  - Full backup system: Export and import watchlist JSON files or reset to top EGX 30 blue chips.
+
+---
+
+## 📲 PWA & Mobile Installation Guide
+
+EGX Pulse is a certified **Progressive Web App (PWA)** that can be installed on your phone's home screen to run in standalone fullscreen mode just like a native app.
+
+### On Android (Chrome / Brave / Edge / Samsung Internet):
+1. Open your deployed URL or preview link in **Google Chrome**.
+2. Tap the green **"تثبيت التطبيق"** (Install App) button in the header.
+3. *Alternative:* Tap Chrome's menu (**⋮**) in the top-right corner and select **"Install app"** or **"Add to Home screen"**.
+4. The EGX Pulse icon will be added to your home screen and app drawer.
+
+### On iPhone & iPad (Safari):
+1. Open the URL in **Safari**.
+2. Tap the **"تثبيت على الآيفون"** button in the header for visual instructions, or tap the Safari **Share** icon at the bottom.
+3. Scroll down the share sheet and tap **"Add to Home Screen"** (`+`).
+4. Tap **"Add"** in the top-right corner.
+5. Launch the app from your home screen with native status bar integration and no browser URL bar.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+- **Frontend**:
   - React 19 + TypeScript
   - Vite 8 + `@tailwindcss/vite` (Tailwind CSS v4)
-  - `vite-plugin-pwa` (Workbox Service Worker & Web App Manifest)
-  - `lucide-react` (أيقونات واجهة المستخدم)
-- **خدمات البيانات والبروكسي (Backend & Proxy)**:
-  - وظائف خادم سحابية (Netlify Serverless Functions) في `netlify/functions/`:
-    - `quotes.ts`: جلب أسعار الأسهم والمؤشرات بالتوازي وتنسيقها.
-    - `search.ts`: البحث عن الشركات وحصر النتائج في سوق القاهرة فقط.
-  - آلية احتياطية ذكية (CORS Fallback Proxy) للعمل في بيئة التطوير المحلية دون الحاجة لأي إعدادات إضافية.
+  - `vite-plugin-pwa` (Workbox Service Worker + Web App Manifest)
+  - `lucide-react` (Feather-style UI icons)
+- **Backend Proxy & Functions (Netlify)**:
+  - `netlify/functions/quotes.ts`: Serverless function accepting `?symbols=SYM1,SYM2,...`, fetching quotes concurrently from Yahoo Finance, and returning structured EGP metrics.
+  - `netlify/functions/search.ts`: Serverless search function filtering exclusively for Cairo Exchange stocks.
+  - `devApiProxyPlugin` in `vite.config.ts`: Local development middleware mirroring the Netlify functions for fast local debugging.
+  - Public CORS fallback in `src/services/quotesService.ts` for environments without serverless function runtimes.
 
 ---
 
-## 🚀 التشغيل المحلي (Local Development)
+## 🚀 Local Development
 
-### 1. المتطلبات:
-- **Node.js**: الإصدار 18 أو أحدث.
-- **npm** أو **pnpm** أو **yarn**.
+### Prerequisites:
+- **Node.js**: v18.0.0 or higher
+- **npm**, **pnpm**, or **yarn**
 
-### 2. التثبيت والتشغيل:
+### Quick Start:
 ```bash
-# استنساخ المستودع
+# 1. Clone the repository
 git clone https://github.com/YOUR_USERNAME/egx-watchlist.git
 cd egx-watchlist
 
-# تثبيت الحزم
+# 2. Install dependencies
 npm install
 
-# تشغيل خادم التطوير
+# 3. Start the local dev server
 npm run dev
 ```
 
-افتح المتصفح على: `http://localhost:3000`
+Open your browser at `http://localhost:3000`.
 
-### 3. بناء المشروع للإنتاج:
+### Production Build:
 ```bash
 npm run build
 ```
-المخرجات ستكون في مجلد `dist/` جاهزة للنشر على أي منصة استضافة.
+Compiled production files will be output to the `dist/` directory.
 
 ---
 
-## ☁️ النشر (Deployment)
+## ☁️ Deployment
 
-### النشر على Netlify (موصى به):
-المشروع مجهز مسبقاً بملف `netlify.toml` وإعدادات التوجيه التلقائي لدوال الخادم:
-1. اربط مستودع GitHub بحسابك على [Netlify](https://www.netlify.com/).
-2. إعدادات البناء الافتراضية:
+### Deploy to Netlify (Recommended)
+This repository includes a pre-configured `netlify.toml` file:
+1. Connect your GitHub repository to [Netlify](https://www.netlify.com/).
+2. Netlify will automatically detect:
    - **Build Command**: `npm run build`
    - **Publish directory**: `dist`
    - **Functions directory**: `netlify/functions`
-3. اضغط **Deploy Site** — وسيعمل التطبيق والـ API مباشرة دون أي إعدادات إضافية!
+3. Click **Deploy**. Both the client PWA and serverless API endpoints will be live immediately.
 
-### النشر على منصات أخرى (Vercel / Cloudflare Pages / Static Host):
-يمكنك نشر مجلد `dist/` على أي استضافة ثابتة، حيث يحتوي التطبيق على بروكسي احتياطي تلقائي (CORS Proxy Fallback) في حالة عدم توفر Netlify Functions.
-
----
-
-## 🔒 الأمان والخصوصية (Security & Public Repo Notice)
-
-**هل توجد أي مشكلة في جعل المستودع عاماً (Public) على GitHub؟**
-- **لا توجد أي مشكلة إطلاقاً**.
-- المشروع **لا يحتوي على أي مفاتيح سرية (Secret Keys)** أو رموز وصول (Tokens) أو بيانات حسابات شخصية أو كلمات مرور.
-- بيانات البورصة يتم جلبها من مصادر بيانات عامة ومجانية لا تتطلب أي مفاتيح API مدفوعة أو خاصة.
-- ملف `.gitignore` يقوم تلقائياً بحجب أي ملفات بيئة سرية `.env` ومجلدات البناء والحزم.
+### Deploy to Other Platforms (Vercel, Cloudflare Pages, GitHub Pages)
+You can deploy the built `dist/` folder to any static hosting provider. The frontend includes an automatic CORS fallback to ensure live quotes continue working.
 
 ---
 
-## 📁 هيكل المشروع (Project Structure)
+## 🔒 Security & Privacy (Safe for Public GitHub)
+
+- **100% Safe for Public Repositories**: This project contains **no private API keys, secrets, access tokens, database passwords, or personal credentials**.
+- **Public Data Source**: Stock data is obtained via public market endpoints without requiring paid accounts or authorization headers.
+- **Local Privacy**: User watchlists, reordering, and interval settings are saved exclusively in the user's browser `localStorage`. No telemetry or user information is transmitted to external servers.
+- **`.gitignore`**: Configured to ignore all `.env*` files, build output (`dist/`), local caches, and dependencies.
+
+---
+
+## 📁 Project Structure
 
 ```text
 ├── netlify/
 │   └── functions/
-│       ├── quotes.ts        # دالة الخادم لجلب بيانات الأسهم والمؤشرات
-│       └── search.ts        # دالة البحث المخصصة لأسهم بورصة القاهرة
+│       ├── quotes.ts        # Netlify function: batch stock & index quotes
+│       └── search.ts        # Netlify function: strict Cairo exchange search
 ├── public/
+│   ├── apple-touch-icon.png # 180x180 iOS home screen icon
 │   ├── favicon.ico
 │   ├── icon.svg
-│   ├── pwa-192x192.png
-│   ├── pwa-512x512.png
-│   └── pwa-maskable-512x512.png
+│   ├── manifest.json        # Web App Manifest
+│   ├── pwa-192x192.png      # Android standard icon
+│   ├── pwa-512x512.png      # High-res splash icon
+│   └── pwa-maskable-512x512.png # Adaptive maskable icon
 ├── src/
-│   ├── components/          # مكونات الواجهة (البطاقات، الشريط العلوي، النوافذ)
-│   ├── data/                # قائمة الأسهم الافتراضية ودليل الشركات المصرية
-│   ├── services/            # خدمة جلب الأسعار، الكاش، والبحث
-│   ├── types/               # تعريفات TypeScript للأسهم والبيانات
-│   ├── utils/               # حساب مواعيد جلسات تداول البورصة المصرية
-│   ├── App.tsx              # المكون الرئيسي للتطبيق
-│   └── main.tsx             # نقطة الدخول
-├── netlify.toml             # إعدادات نشر Netlify ودوال الـ API
+│   ├── components/          # UI components (Tiles, Status Bar, Modals, Sparklines)
+│   ├── data/                # Default EGX watchlist & popular stock catalog
+│   ├── hooks/               # PWA install prompt hook
+│   ├── services/            # Quotes fetching service, cache, and search
+│   ├── types/               # TypeScript interfaces (StockQuote, StockItem, etc.)
+│   ├── utils/               # EGX market hours and Cairo timezone calculations
+│   ├── App.tsx              # Root component & state management
+│   ├── index.css            # Tailwind CSS v4 styling
+│   └── main.tsx             # Application entry point
+├── netlify.toml             # Netlify deployment configuration & redirects
 ├── package.json
-└── vite.config.ts           # إعدادات Vite والـ PWA وخادم التطوير
+└── vite.config.ts           # Vite, PWA plugin & local dev proxy setup
 ```
 
 ---
 
-## 📄 الترخيص (License)
-هذا المشروع مرخص بموجب رخصة **Apache-2.0**.
+## 📄 License
+This project is open-source and available under the **Apache-2.0 License**.
