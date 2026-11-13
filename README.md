@@ -41,9 +41,9 @@ The application is 100% data-driven and free of AI chatbots or generative clutte
   - Automatically calculates Cairo Exchange trading hours (**09:30 AM to 02:45 PM Sun–Thu, Cairo Time**).
   - **Active Session**: Auto-refreshes stock prices every 2 minutes.
   - **Closed Session**: Pauses background polling and preserves the latest official closing prices to save device battery and mobile data.
-- **Strict Egyptian Exchange Search**:
+- **Strict Egyptian Exchange Search (Arabic & English)**:
   - Search modal exclusively queries Egyptian Exchange (EGX) stocks, preventing irrelevant foreign exchange clutter.
-  - Built-in catalog supporting popular Arabic company names and colloquial aliases (e.g., searching "طلعت مصطفى" directly maps to `TMGH`).
+  - Supports both English ticker codes (e.g., `TMGH`, `COMI`) and Arabic company names with letter normalization (e.g., searching `"المصرية"` or `"طلعت مصطفى"`).
 - **Zero-Login Multi-Device Cloud Sync**:
   - Share and synchronize your watchlist, refresh frequency, sorting, and chart range (`1D`/`7D`) between desktop and mobile using a short **Secret Sync Code** (e.g., `SYNC-4K9M`)—no Google Sign-In, accounts, or passwords required.
   - Automatic startup cloud pull when online and debounced auto-push on local changes, plus manual **Push**, **Pull**, **Copy**, and **Unlink** controls.
@@ -82,9 +82,9 @@ EGX Pulse is a certified **Progressive Web App (PWA)** that can be installed on 
   - `lucide-react` (Feather-style UI icons)
 - **Backend Proxy, Sync & Functions (Netlify)**:
   - `netlify/functions/quotes.ts`: Serverless function fetching live EGX stock & index quotes (`EGX30`, `EGX70EWI`), 1D/7D performance, volume, turnover, and 52-week ranges via TradingView's Egypt scanner API, merged with Yahoo Finance historical daily bars for 7-day sparklines.
-  - `netlify/functions/search.ts`: Serverless search function querying Egyptian Exchange equities exclusively.
-  - `netlify/functions/sync.ts`: Serverless cloud sync endpoint (`GET`/`POST /api/sync`) backed by **`@netlify/blobs`** with strong consistency for zero-login cross-device state persistence.
-  - `devApiProxyPlugin` in `vite.config.ts`: Local development middleware mirroring `/api/quotes`, `/api/search`, and an in-memory `/api/sync` store for instant local testing without Netlify CLI.
+  - `netlify/functions/search.ts`: Serverless search function querying Egyptian Exchange equities exclusively with automatic Arabic (`lang: 'ar'`) and English (`lang: 'en'`) query detection.
+  - `netlify/functions/sync.ts`: Netlify Functions v2 cloud sync endpoint (`GET`/`POST /api/sync`) backed by **`@netlify/blobs`** (using strong consistency with automatic default-consistency fallback) for zero-login cross-device state persistence.
+  - `devApiProxyPlugin` in `vite.config.ts`: Local development middleware mirroring `/api/quotes`, `/api/search`, and an in-memory `/api/sync` store for instant local testing without Netlify CLI, plus Workbox `navigateFallbackDenylist` for `/api/*` and `/.netlify/*`.
   - `src/services/syncService.ts`: Client sync manager generating `SYNC-XXXX` codes, persisting local sync metadata, and coordinating auto-pull/debounced auto-push.
   - Public CORS fallback in `src/services/quotesService.ts` with stale-quote protection for static environments without serverless runtimes.
 
@@ -150,8 +150,8 @@ You can deploy the built `dist/` folder to any static hosting provider. The fron
 ├── netlify/
 │   └── functions/
 │       ├── quotes.ts        # Netlify function: live EGX quotes + 7D sparkline history
-│       ├── search.ts        # Netlify function: strict EGX-only symbol & name search
-│       └── sync.ts          # Netlify function: @netlify/blobs cloud sync (GET/POST /api/sync)
+│       ├── search.ts        # Netlify function: strict EGX-only symbol & Arabic/English name search
+│       └── sync.ts          # Netlify Function v2: @netlify/blobs cloud sync (GET/POST /api/sync)
 ├── public/
 │   ├── apple-touch-icon.png # 180x180 iOS home screen icon
 │   ├── favicon.ico
